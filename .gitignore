@@ -6,3 +6,6 @@ users.json
 chat_sessions.json
 study_progress.json
 *.pdf
+*.pptx
+*.docx
+*.pdf
