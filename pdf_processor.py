@@ -7,10 +7,17 @@ import tempfile
 import os
 
 # Set Tesseract path
-pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+import platform
+if platform.system() == "Windows":
+    pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+# On Linux/Streamlit Cloud, tesseract is in PATH automatically
 
 # Set Poppler path
-POPPLER_PATH = r"C:\poppler\poppler-25.12.0\Library\bin"
+import platform
+if platform.system() == "Windows":
+    POPPLER_PATH = r"C:\poppler\poppler-25.12.0\Library\bin"
+else:
+    POPPLER_PATH = None  # On Linux poppler is in PATH
 
 def is_scanned_pdf(documents):
     total_text = " ".join([doc.page_content for doc in documents]).strip()
