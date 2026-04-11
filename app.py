@@ -1354,6 +1354,7 @@ with tab6:
             )
 
 # ── PDF VIEWER TAB ──
+# ── PDF VIEWER TAB ──
 with tab7:
     st.markdown("## 📄 PDF Viewer")
     st.markdown("View your uploaded PDF directly inside EduBot!")
@@ -1365,27 +1366,52 @@ with tab7:
     else:
         st.success(f"📄 Viewing: **{st.session_state.uploaded_pdf_name}**")
 
-        # Display PDF using base64
-        import base64
-        base64_pdf = base64.b64encode(
-            st.session_state.uploaded_pdf_bytes
-        ).decode("utf-8")
+        try:
+            import fitz  # PyMuPDF
+            import io
+            from PIL import Image
 
-        pdf_display = f"""
-        <iframe
-            src="data:application/pdf;base64,{base64_pdf}"
-            width="100%"
-            height="800px"
-            style="border: 2px solid {'#1B4F8A' if st.session_state.dark_mode else '#CBD5E1'};
-                   border-radius: 12px;"
-            type="application/pdf"
-        >
-        </iframe>
-        """
-        st.markdown(pdf_display, unsafe_allow_html=True)
+            # Load PDF from bytes
+            pdf_document = fitz.open(
+                stream=st.session_state.uploaded_pdf_bytes,
+                filetype="pdf"
+            )
+
+            total_pages = len(pdf_document)
+            st.info(f"📑 Total Pages: {total_pages}")
+
+            # Page navigation
+            if total_pages > 1:
+                page_num = st.slider(
+                    "Select Page",
+                    min_value=1,
+                    max_value=total_pages,
+                    value=1
+                )
+            else:
+                page_num = 1
+
+            # Render selected page as image
+            page = pdf_document[page_num - 1]
+            mat = fitz.Matrix(2.0, 2.0)  # 2x zoom for better quality
+            clip = page.get_pixmap(matrix=mat)
+
+            # Convert to PIL image
+            img_bytes = clip.tobytes("png")
+            img = Image.open(io.BytesIO(img_bytes))
+
+            # Display the page
+            st.markdown(f"**Page {page_num} of {total_pages}**")
+            st.image(img, use_container_width=True)
+
+            pdf_document.close()
+
+        except Exception as e:
+            st.error(f"❌ Could not render PDF: {str(e)}")
+
+        st.markdown("---")
 
         # Download button
-        st.markdown("---")
         st.download_button(
             label="📥 Download PDF",
             data=st.session_state.uploaded_pdf_bytes,
