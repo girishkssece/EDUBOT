@@ -393,10 +393,18 @@ with st.sidebar:
                     st.session_state.vectorstore = create_vectorstore(chunks)
                     st.session_state.pdf_name = combined_name
                     # Save PDF bytes for viewer
+                    # Save PDF bytes for viewer
                     if len(uploaded_files) == 1:
-                        uploaded_files[0].seek(0)
-                        st.session_state.uploaded_pdf_bytes = uploaded_files[0].read()
-                        st.session_state.uploaded_pdf_name = uploaded_files[0].name
+                        try:
+                            uploaded_files[0].seek(0)
+                            pdf_bytes = uploaded_files[0].read()
+                            if pdf_bytes:
+                                st.session_state.uploaded_pdf_bytes = pdf_bytes
+                                st.session_state.uploaded_pdf_name = uploaded_files[0].name
+                            else:
+                                st.session_state.uploaded_pdf_bytes = None
+                        except:
+                            st.session_state.uploaded_pdf_bytes = None
                     else:
                         st.session_state.uploaded_pdf_bytes = None
                         st.session_state.uploaded_pdf_name = ""

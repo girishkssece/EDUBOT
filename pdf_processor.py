@@ -30,6 +30,7 @@ def ocr_pdf(pdf_path, source_file_name):
 
 def process_pdf(uploaded_file):
     # Save uploaded file temporarily
+    uploaded_file.seek(0)  # Reset pointer before reading
     with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_file:
         tmp_file.write(uploaded_file.read())
         tmp_path = tmp_file.name
