@@ -9,6 +9,8 @@ from auth import login_user, register_user
 from progress_tracker import load_progress, save_progress, add_topic, update_topic_status, delete_topic, get_stats
 import plotly.graph_objects as go
 import plotly.express as px
+from dotenv import load_dotenv
+load_dotenv()
 
 # Page config
 st.set_page_config(
