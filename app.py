@@ -1,4 +1,5 @@
 import streamlit as st
+from dotenv import load_dotenv
 from pdf_processor import process_pdf
 from embeddings import create_vectorstore
 from chatbot import get_answer
@@ -9,6 +10,14 @@ from auth import login_user, register_user
 from progress_tracker import load_progress, save_progress, add_topic, update_topic_status, delete_topic, get_stats
 import plotly.graph_objects as go
 import plotly.express as px
+import os
+IS_HF = os.environ.get("HF_TOKEN") is not None
+
+if IS_HF:
+    from hf_storage import load_json_from_hf, save_json_to_hf
+
+# Load environment variables
+load_dotenv()
 
 # Page config
 st.set_page_config(
@@ -255,16 +264,76 @@ def show_login_page():
                     else:
                         st.error(message)
 
-# ── HELPER FUNCTIONS ──
-def load_all_sessions():
-    if os.path.exists(HISTORY_FILE):
-        with open(HISTORY_FILE, "r") as f:
-            return json.load(f)
-    return {}
+    # Footer
+    st.markdown("---")
+    st.markdown("""
+    <div style="text-align:center; padding: 20px 0px 10px 0px;">
+        <p style="color:#64748B; font-size:13px; margin-bottom:8px;">
+            🔒 Your data is stored securely. Passwords are SHA-256 encrypted.
+        </p>
+        <p style="color:#64748B; font-size:12px;">
+            © 2025 EduBot &nbsp;|&nbsp; Built with ❤️ using LangChain, Groq LLM & Streamlit
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
 
-def save_all_sessions(sessions):
-    with open(HISTORY_FILE, "w") as f:
-        json.dump(sessions, f, indent=2)
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        with st.expander("📖 About"):
+            st.markdown("""
+            EduBot is an AI-powered study assistant that helps students learn smarter.
+            Upload any PDF and get instant answers, summaries, quizzes, flashcards and more!
+            
+            **Version:** 1.0.0  
+            **Developer:** Girish K S  
+            **Institution:** Sri Eshwar College of Engineering  
+            """)
+    with col2:
+        with st.expander("🔒 Privacy Policy"):
+            st.markdown("""
+            - EduBot does **not** share your data with any third parties
+            - Uploaded PDFs are processed in memory and never stored permanently
+            - Passwords are encrypted using **SHA-256** hashing
+            - Chat history is stored only for your account
+            """)
+    with col3:
+        with st.expander("📋 Terms of Use"):
+            st.markdown("""
+            - EduBot is for **educational purposes only**
+            - Do not upload confidential or copyrighted materials
+            - By using EduBot you agree to use it responsibly
+            - We reserve the right to update these terms anytime
+            """)
+
+# ── HELPER FUNCTIONS ──
+def load_all_sessions(username):
+    if IS_HF:
+        all_data = load_json_from_hf("chat_sessions.json")
+    else:
+        if os.path.exists(HISTORY_FILE):
+            with open(HISTORY_FILE, "r") as f:
+                all_data = json.load(f)
+        else:
+            all_data = {}
+    # Return only this user's sessions
+    return all_data.get(username, {})
+
+def save_all_sessions(username, sessions):
+    if IS_HF:
+        all_data = load_json_from_hf("chat_sessions.json")
+    else:
+        if os.path.exists(HISTORY_FILE):
+            with open(HISTORY_FILE, "r") as f:
+                all_data = json.load(f)
+        else:
+            all_data = {}
+    # Save only under this user's key
+    all_data[username] = sessions
+    if IS_HF:
+        save_json_to_hf("chat_sessions.json", all_data)
+    else:
+        with open(HISTORY_FILE, "w") as f:
+            json.dump(all_data, f, indent=2)
 
 def create_new_session(pdf_name):
     session_id = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -290,7 +359,7 @@ if "user_name" not in st.session_state:
     st.session_state.user_name = ""
 
 if "all_sessions" not in st.session_state:
-    st.session_state.all_sessions = load_all_sessions()
+    st.session_state.all_sessions = load_all_sessions(st.session_state.username)
 
 if "current_session_id" not in st.session_state:
     st.session_state.current_session_id = None
@@ -393,18 +462,22 @@ with st.sidebar:
                     st.session_state.vectorstore = create_vectorstore(chunks)
                     st.session_state.pdf_name = combined_name
                     # Save PDF bytes for viewer
-                    # Save PDF bytes for viewer
-                    if len(uploaded_files) == 1:
+                    # Save all uploaded PDFs for viewer
+                    pdf_list = []
+                    for uf in uploaded_files:
                         try:
-                            uploaded_files[0].seek(0)
-                            pdf_bytes = uploaded_files[0].read()
+                            uf.seek(0)
+                            pdf_bytes = uf.read()
                             if pdf_bytes:
-                                st.session_state.uploaded_pdf_bytes = pdf_bytes
-                                st.session_state.uploaded_pdf_name = uploaded_files[0].name
-                            else:
-                                st.session_state.uploaded_pdf_bytes = None
+                                pdf_list.append({"name": uf.name, "bytes": pdf_bytes})
                         except:
-                            st.session_state.uploaded_pdf_bytes = None
+                            pass
+                    st.session_state.uploaded_pdf_list = pdf_list
+
+                    # Keep single PDF support for backward compatibility
+                    if len(uploaded_files) == 1 and pdf_list:
+                        st.session_state.uploaded_pdf_bytes = pdf_list[0]["bytes"]
+                        st.session_state.uploaded_pdf_name = pdf_list[0]["name"]
                     else:
                         st.session_state.uploaded_pdf_bytes = None
                         st.session_state.uploaded_pdf_name = ""
@@ -422,7 +495,7 @@ with st.sidebar:
                         # Continue existing session automatically
                         st.session_state.current_session_id = matched_session_id
                         st.session_state.pdf_name = combined_name
-                        save_all_sessions(st.session_state.all_sessions)
+                        save_all_sessions(st.session_state.username, st.session_state.all_sessions)
                         st.success("✅ Continuing your previous chat!")
                         st.rerun()
                     else:
@@ -430,7 +503,7 @@ with st.sidebar:
                         session_id, session_data = create_new_session(combined_name)
                         st.session_state.current_session_id = session_id
                         st.session_state.all_sessions[session_id] = session_data
-                        save_all_sessions(st.session_state.all_sessions)
+                        save_all_sessions(st.session_state.username, st.session_state.all_sessions)
                         st.success(f"✅ {len(uploaded_files)} PDF(s) ready!")
                         st.rerun()
 
@@ -472,7 +545,7 @@ with st.sidebar:
             with col2:
                 if st.button("🗑️", key=f"del_{session_id}"):
                     del st.session_state.all_sessions[session_id]
-                    save_all_sessions(st.session_state.all_sessions)
+                    save_all_sessions(st.session_state.username, st.session_state.all_sessions)
                     if st.session_state.current_session_id == session_id:
                         st.session_state.current_session_id = None
                     st.rerun()
@@ -557,7 +630,7 @@ with tab1:
                         help="Bookmark this answer"
                     ):
                         session["messages"][idx]["bookmarked"] = not is_bookmarked
-                        save_all_sessions(st.session_state.all_sessions)
+                        save_all_sessions(st.session_state.username, st.session_state.all_sessions)
                         st.rerun()
 
                 st.caption(f"🕐 {msg['time']}  {'⭐ Bookmarked' if is_bookmarked else ''}")
@@ -616,7 +689,7 @@ with tab1:
                     ],
                     "time": datetime.now().strftime('%H:%M:%S')
                 })
-                save_all_sessions(st.session_state.all_sessions)
+                save_all_sessions(st.session_state.username, st.session_state.all_sessions)
                 st.rerun()
 
         else:
@@ -1328,7 +1401,7 @@ with tab6:
                         key=f"remove_bm_{session_id}_{idx}"
                     ):
                         st.session_state.all_sessions[session_id]["messages"][idx]["bookmarked"] = False
-                        save_all_sessions(st.session_state.all_sessions)
+                        save_all_sessions(st.session_state.username, st.session_state.all_sessions)
                         st.rerun()
 
         if not bookmarks_found:
@@ -1357,30 +1430,38 @@ with tab6:
 # ── PDF VIEWER TAB ──
 with tab7:
     st.markdown("## 📄 PDF Viewer")
-    st.markdown("View your uploaded PDF directly inside EduBot!")
+    st.markdown("View your uploaded PDFs directly inside EduBot!")
     st.markdown("---")
 
-    if st.session_state.uploaded_pdf_bytes is None:
-        st.info("👈 Upload a single PDF from the sidebar to view it here!")
-        st.caption("Note: PDF viewer works with single PDF uploads only.")
+    # Check if any PDFs are uploaded
+    if not st.session_state.get("uploaded_pdf_list"):
+        st.info("👈 Upload a PDF from the sidebar to view it here!")
     else:
-        st.success(f"📄 Viewing: **{st.session_state.uploaded_pdf_name}**")
+        pdf_list = st.session_state.uploaded_pdf_list
+
+        # If multiple PDFs, show selector
+        if len(pdf_list) > 1:
+            pdf_names = [p["name"] for p in pdf_list]
+            selected_name = st.selectbox("📂 Select PDF to View", pdf_names)
+            selected_pdf = next(p for p in pdf_list if p["name"] == selected_name)
+        else:
+            selected_pdf = pdf_list[0]
+
+        st.success(f"📄 Viewing: **{selected_pdf['name']}**")
 
         try:
-            import fitz  # PyMuPDF
+            import fitz
             import io
             from PIL import Image
 
-            # Load PDF from bytes
             pdf_document = fitz.open(
-                stream=st.session_state.uploaded_pdf_bytes,
+                stream=selected_pdf["bytes"],
                 filetype="pdf"
             )
 
             total_pages = len(pdf_document)
             st.info(f"📑 Total Pages: {total_pages}")
 
-            # Page navigation
             if total_pages > 1:
                 page_num = st.slider(
                     "Select Page",
@@ -1391,16 +1472,13 @@ with tab7:
             else:
                 page_num = 1
 
-            # Render selected page as image
             page = pdf_document[page_num - 1]
-            mat = fitz.Matrix(2.0, 2.0)  # 2x zoom for better quality
+            mat = fitz.Matrix(2.0, 2.0)
             clip = page.get_pixmap(matrix=mat)
 
-            # Convert to PIL image
             img_bytes = clip.tobytes("png")
             img = Image.open(io.BytesIO(img_bytes))
 
-            # Display the page
             st.markdown(f"**Page {page_num} of {total_pages}**")
             st.image(img, use_container_width=True)
 
@@ -1411,10 +1489,9 @@ with tab7:
 
         st.markdown("---")
 
-        # Download button
         st.download_button(
             label="📥 Download PDF",
-            data=st.session_state.uploaded_pdf_bytes,
-            file_name=st.session_state.uploaded_pdf_name,
+            data=selected_pdf["bytes"],
+            file_name=selected_pdf["name"],
             mime="application/pdf"
         )
