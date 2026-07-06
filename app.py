@@ -238,6 +238,7 @@ def show_login_page():
                         st.session_state.logged_in = True
                         st.session_state.username = username
                         st.session_state.user_name = name
+                        st.session_state.all_sessions = load_all_sessions(username)
                         st.success(message)
                         st.rerun()
                     else:
@@ -359,7 +360,7 @@ if "user_name" not in st.session_state:
     st.session_state.user_name = ""
 
 if "all_sessions" not in st.session_state:
-    st.session_state.all_sessions = load_all_sessions(st.session_state.username)
+    st.session_state.all_sessions = {}
 
 if "current_session_id" not in st.session_state:
     st.session_state.current_session_id = None
