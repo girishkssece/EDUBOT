@@ -1,32 +1,30 @@
 from langchain_community.vectorstores import FAISS
-from langchain_groq import ChatGroq
 from langchain.embeddings.base import Embeddings
-import os
 from typing import List
+import hashlib
+import math
 
-class GroqEmbeddings(Embeddings):
-    def __init__(self):
-        self.client = ChatGroq(
-            model="llama-4-scout-17b-16e-instruct",
-            groq_api_key=os.environ.get("GROQ_API_KEY")
-        )
-    
+class LightweightEmbeddings(Embeddings):
+    def __init__(self, dim=384):
+        self.dim = dim
+
+    def _embed(self, text: str) -> List[float]:
+        words = text.lower().split()
+        vector = [0.0] * self.dim
+        for word in words:
+            h = int(hashlib.md5(word.encode()).hexdigest(), 16)
+            idx = h % self.dim
+            vector[idx] += 1.0
+        norm = math.sqrt(sum(x*x for x in vector)) or 1.0
+        return [x/norm for x in vector]
+
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
-        from groq import Groq
-        client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
-        embeddings = []
-        for text in texts:
-            response = client.embeddings.create(
-                model="nomic-embed-text-v1_5",
-                input=text[:512]
-            )
-            embeddings.append(response.data[0].embedding)
-        return embeddings
-    
+        return [self._embed(t) for t in texts]
+
     def embed_query(self, text: str) -> List[float]:
-        return self.embed_documents([text])[0]
+        return self._embed(text)
 
 def create_vectorstore(chunks):
-    embeddings = GroqEmbeddings()
+    embeddings = LightweightEmbeddings()
     vectorstore = FAISS.from_documents(chunks, embeddings)
     return vectorstore
