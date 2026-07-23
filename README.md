@@ -6,7 +6,7 @@
 ![Groq](https://img.shields.io/badge/Groq-Llama%204%20Scout-orange)
 ![License](https://img.shields.io/badge/License-MIT-yellow)
 
-> **EduBot** is an AI-powered PDF study platform that helps students learn smarter. Upload any PDF and get instant answers, summaries, quizzes, flashcards, and much more — all powered by cutting-edge AI!
+> **EduBot** is an AI-powered PDF study assistant that helps students learn smarter. Upload any PDF and get instant answers, summaries, quizzes, flashcards, and much more — all powered by cutting-edge AI!
 
 ---
 
@@ -146,7 +146,7 @@ streamlit run app.py
 
 ---
 
-## 👨‍💻 Developer
+
 
 **Girish K S**
 - 🎓 B.Tech AI-DS, Sri Eshwar College of Engineering
