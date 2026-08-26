@@ -492,18 +492,20 @@ with st.sidebar:
                             matched_session_id = sid
                             break
 
-                    if matched_session_id:
-                        # Continue existing session automatically
+                    if matched_session_id and st.session_state.get("resuming_session") == matched_session_id:
+                        # Continue only if clicked from history
                         st.session_state.current_session_id = matched_session_id
                         st.session_state.pdf_name = combined_name
+                        st.session_state.resuming_session = None  # Reset after use
                         save_all_sessions(st.session_state.username, st.session_state.all_sessions)
                         st.success("✅ Continuing your previous chat!")
                         st.rerun()
                     else:
-                        # Create new session
+                        # Always create new session for fresh uploads
                         session_id, session_data = create_new_session(combined_name)
                         st.session_state.current_session_id = session_id
                         st.session_state.all_sessions[session_id] = session_data
+                        st.session_state.resuming_session = None  # Reset
                         save_all_sessions(st.session_state.username, st.session_state.all_sessions)
                         st.success(f"✅ {len(uploaded_files)} PDF(s) ready!")
                         st.rerun()

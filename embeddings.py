@@ -3,6 +3,19 @@ from langchain.embeddings.base import Embeddings
 from typing import List
 import hashlib
 import math
+import os
+
+IS_CLOUD = os.environ.get("RENDER") is not None
+
+if not IS_CLOUD:
+    # Use high quality embeddings on localhost
+    try:
+        from langchain_community.embeddings import HuggingFaceEmbeddings
+        USE_HF = True
+    except:
+        USE_HF = False
+else:
+    USE_HF = False
 
 class LightweightEmbeddings(Embeddings):
     def __init__(self, dim=384):
@@ -25,6 +38,14 @@ class LightweightEmbeddings(Embeddings):
         return self._embed(text)
 
 def create_vectorstore(chunks):
-    embeddings = LightweightEmbeddings()
+    if USE_HF:
+        embeddings = HuggingFaceEmbeddings(
+            model_name="all-MiniLM-L6-v2",
+            model_kwargs={"device": "cpu"},
+            encode_kwargs={"normalize_embeddings": True}
+        )
+    else:
+        embeddings = LightweightEmbeddings()
+    
     vectorstore = FAISS.from_documents(chunks, embeddings)
     return vectorstore
